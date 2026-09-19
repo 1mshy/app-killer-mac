@@ -13,8 +13,9 @@ test -x "$KILLER_APP/Contents/MacOS/Killer"
 test -x "$KILLER_APP/Contents/Helpers/KillerPrivileged"
 /usr/bin/codesign --verify --deep --strict "$KILLER_APP"
 /usr/bin/plutil -lint "$KILLER_APP/Contents/Info.plist"
-/usr/bin/lipo -verify_arch "$KILLER_ARCH" "$KILLER_APP/Contents/MacOS/Killer"
-/usr/bin/lipo -verify_arch "$KILLER_ARCH" "$KILLER_APP/Contents/Helpers/KillerPrivileged"
+# Xcode 26's lipo consumes every argument after -verify_arch as an architecture.
+/usr/bin/lipo "$KILLER_APP/Contents/MacOS/Killer" -verify_arch "$KILLER_ARCH"
+/usr/bin/lipo "$KILLER_APP/Contents/Helpers/KillerPrivileged" -verify_arch "$KILLER_ARCH"
 
 mkdir -p build/artifacts
 KILLER_ARCHIVE="Killer-macOS-$KILLER_ARCH.zip"
