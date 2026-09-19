@@ -4,10 +4,16 @@ import PackageDescription
 let package = Package(
     name: "Killer",
     platforms: [.macOS(.v26)],
-    products: [.library(name: "KillerCore", targets: ["KillerCore"])],
+    products: [
+        .executable(name: "Killer", targets: ["Killer"]),
+        .executable(name: "KillerPrivileged", targets: ["KillerPrivileged"])
+    ],
     targets: [
         .target(name: "CProcess", publicHeadersPath: "include"),
         .target(name: "KillerCore", dependencies: ["CProcess"]),
-        .testTarget(name: "KillerCoreTests", dependencies: ["KillerCore"])
+        .executableTarget(name: "Killer", dependencies: ["KillerCore"]),
+        .executableTarget(name: "KillerPrivileged", dependencies: ["KillerCore"]),
+        .testTarget(name: "KillerCoreTests", dependencies: ["KillerCore"]),
+        .testTarget(name: "KillerAppTests", dependencies: ["Killer", "KillerCore"])
     ]
 )
