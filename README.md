@@ -45,7 +45,7 @@ The disposable test app refuses normal Quit. Search for **Killer Test App** in K
 
 ## GitHub Actions
 
-- **CI** runs on pull requests, pushes to `main`, and manual requests from the Actions tab. It checks shell/C syntax, runs all tests, builds and verifies the release app, then uploads a ZIP and SHA-256 checksum. Build and test logs are retained even when a step fails. Artifacts expire after 14 days.
+- **CI** runs on pull requests, pushes to `main`, and manual requests from the Actions tab. It checks shell/C syntax, runs all tests serially, builds and verifies the release app, then uploads a ZIP and SHA-256 checksum. Test/build/package steps have time limits; logs and an XML test report are retained even when a step fails. Artifacts expire after 14 days.
 - **Release** runs when a `vMAJOR.MINOR.PATCH` tag is pushed. It repeats CI on that exact tag, embeds the version and workflow run number in the app, verifies the downloaded checksum, and publishes a GitHub Release with the app and generated change notes. A failed check blocks publication; an existing release is never silently overwritten.
 - **Dependabot** proposes weekly updates to the pinned GitHub Actions dependencies.
 

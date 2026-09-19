@@ -58,12 +58,16 @@ jobs:
             -I Sources/CProcess/include Sources/CProcess/CProcess.c
 
       - name: Run tests
-        run: ./scripts/test.sh 2>&1 | tee build/test.log
+        timeout-minutes: 8
+        # These tests exercise OS processes and AppleScript, not just pure values.
+        run: ./scripts/test.sh --no-parallel --xunit-output build/test-results.xml 2>&1 | tee build/test.log
 
       - name: Build the release app
+        timeout-minutes: 10
         run: ./scripts/build.sh release 2>&1 | tee build/build.log
 
       - name: Package and verify the archive
+        timeout-minutes: 3
         run: ./scripts/package.sh 2>&1 | tee build/package.log
 
       - name: Upload the app and checksum
@@ -81,6 +85,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-logs-${{ github.run_attempt }}
-          path: build/*.log
+          path: |
+            build/*.log
+            build/test-results.xml
           if-no-files-found: ignore
           retention-days: 14
