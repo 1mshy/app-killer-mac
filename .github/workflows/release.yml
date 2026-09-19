@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Require a numeric version tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Release tags must use vMAJOR.MINOR.PATCH, for example v1.0.0.' >&2
+            exit 1
+          fi
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Verify release
+    needs: version
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish GitHub Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified app
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: killer-macos-arm64
+          path: dist
+
+      - name: Verify the checksum
+        working-directory: dist
+        run: sha256sum --check Killer-macOS-arm64.zip.sha256
+
+      - name: Publish the tagged build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          cat > release-notes.md <<'NOTES'
+          Native macOS app for force quitting stubborn apps and explicitly selected background processes.
+
+          **Requirements:** macOS 26 or newer, Apple silicon (arm64).
+
+          Download `Killer-macOS-arm64.zip`; the adjacent `.sha256` file verifies the download.
+
+          **Signing:** this build is ad-hoc signed for integrity, not Developer ID signed or notarized. macOS Gatekeeper may block a downloaded copy. Building from source is documented in the README.
+
+          Stopping a process can lose unsaved changes. Protected or managed services may refuse termination or restart themselves.
+          NOTES
+          gh release create "$RELEASE_TAG" \
+            dist/Killer-macOS-arm64.zip \
+            dist/Killer-macOS-arm64.zip.sha256 \
+            --verify-tag \
+            --title "Killer $RELEASE_TAG" \
+            --notes-file release-notes.md \
+            --generate-notes

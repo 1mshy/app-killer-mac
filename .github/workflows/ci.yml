@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Numeric release version to embed in the app, such as 1.2.3.
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-and-build:
+    name: Test and package (Apple silicon)
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      KILLER_VERSION: ${{ inputs.version }}
+      KILLER_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select and record the toolchain
+        run: |
+          mkdir -p build
+          echo "KILLER_SDK=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+          {
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun swift --version
+            xcrun --sdk macosx --show-sdk-version
+          } | tee build/toolchain.log
+
+      - name: Check scripts and C bridge
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+          xcrun clang -Wall -Wextra -Werror -fsyntax-only \
+            -I Sources/CProcess/include Sources/CProcess/CProcess.c
+
+      - name: Run tests
+        run: ./scripts/test.sh 2>&1 | tee build/test.log
+
+      - name: Build the release app
+        run: ./scripts/build.sh release 2>&1 | tee build/build.log
+
+      - name: Package and verify the archive
+        run: ./scripts/package.sh 2>&1 | tee build/package.log
+
+      - name: Upload the app and checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: killer-macos-arm64
+          path: build/artifacts/*
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 14
+
+      - name: Keep build and test logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-logs-${{ github.run_attempt }}
+          path: build/*.log
+          if-no-files-found: ignore
+          retention-days: 14
